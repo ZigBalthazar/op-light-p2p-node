@@ -1,41 +1,28 @@
 package main
 
 import (
-	"context"
-	"errors"
-	"fmt"
+	"os"
 
-	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
-	opnode "github.com/ethereum-optimism/optimism/op-node"
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
-	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-bootnode/bootnode"
+	"github.com/ethereum-optimism/optimism/op-bootnode/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/opio"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
+func main() {
+	oplog.SetupDefaults()
 
+	app := cli.NewApp()
+	app.Flags = flags.Flags
+	app.Name = "bootnode"
+	app.Usage = "Rollup Bootnode"
+	app.Description = "Broadcasts incoming P2P peers to each other, enabling peer bootstrapping."
+	app.Action = bootnode.Main
 
-
-func main(){
-	log.Info("Initializing bootnode")
-	logCfg := oplog.ReadCLIConfig(cliCtx)
-	logger := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
-	oplog.SetGlobalLogHandler(logger.Handler())
-	m := metrics.NewMetrics("default")
-	ctx := context.Background()
-
-	config, err := opnode.NewRollupConfigFromCLI(logger, cliCtx)
+	err := app.Run(os.Args)
 	if err != nil {
-		return err
-	}
-	if err = validateConfig(config); err != nil {
-		return err
+		log.Crit("Application failed", "message", err)
 	}
 }

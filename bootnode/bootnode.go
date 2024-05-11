@@ -26,14 +26,17 @@ import (
 
 type gossipNoop struct{}
 
-func (g *gossipNoop) OnUnsafeL2Payload(_ context.Context, _ peer.ID, _ *eth.ExecutionPayloadEnvelope) error {
+
+func (g *gossipNoop) OnUnsafeL2Payload(_ context.Context, _ peer.ID, msg *eth.ExecutionPayloadEnvelope) error {
+	fmt.Println(msg.ExecutionPayload.BlockHash)
 	return nil
 }
 
 type gossipConfig struct{}
 
 func (g *gossipConfig) P2PSequencerAddress() common.Address {
-	return common.Address{}
+	// return common.HexToAddress("0xAAAA45d9549EDA09E70937013520214382Ffc4A2") // op-mainnet
+	return common.HexToAddress("0xAf6E19BE0F9cE7f8afd49a1824851023A8249e8a") // base-mainnet
 }
 
 type l2Chain struct{}
@@ -67,7 +70,8 @@ func Main(cliCtx *cli.Context) error {
 		p2pConfig.EnableReqRespSync = false
 	}
 
-	p2pNode, err := p2p.NewNodeP2P(ctx, config, logger, p2pConfig, &gossipNoop{}, &l2Chain{}, &gossipConfig{}, m, false)
+	gossipHandler := &gossipNoop{}
+	p2pNode, err := p2p.NewNodeP2P(ctx, config, logger, p2pConfig, gossipHandler, &l2Chain{}, &gossipConfig{}, m, false)
 	if err != nil || p2pNode == nil {
 		return err
 	}
@@ -115,6 +119,14 @@ func Main(cliCtx *cli.Context) error {
 		log.Info("started metrics server", "addr", metricsSrv.Addr())
 		m.RecordUp()
 	}
+
+
+	/////////////////////////////////////////////
+	// p2pNode.Host()
+	// p2pNode.Host()
+	// p2pNode.GossipOut()
+	/////////////////////////////////////////////
+
 
 	opio.BlockOnInterrupts()
 

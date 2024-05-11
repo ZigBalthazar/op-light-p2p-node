@@ -5,8 +5,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
+	"github.com/zigbalthazar/op-light-p2p-node/bootnode"
 
-	"github.com/ethereum-optimism/optimism/op-bootnode/bootnode"
 	"github.com/ethereum-optimism/optimism/op-bootnode/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )

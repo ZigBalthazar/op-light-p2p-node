@@ -57,7 +57,7 @@ func (q *Queue) Add(streamName string, data map[string]interface{}) error {
 		return err
 	}
 
-	fmt.Println("New block added to stream")
+	fmt.Println("block added to queue")
 
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"os"
 )
 
 func HexToDecimal(hexStr string) (*big.Int, error) {
@@ -16,18 +17,17 @@ func HexToDecimal(hexStr string) (*big.Int, error) {
 }
 
 func StructToMap(data interface{}) (map[string]interface{}, error) {
-    var result map[string]interface{}
-    bytes, err := json.Marshal(data)
-    if err != nil {
-        return nil, err
-    }
-    err = json.Unmarshal(bytes, &result)
-    if err != nil {
-        return nil, err
-    }
-    return result, nil
+	var result map[string]interface{}
+	bytes, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(bytes, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
-
 
 func ToJsonString(data interface{}) (string, error) {
 	jsonString, err := json.MarshalIndent(data, "", "    ")
@@ -35,4 +35,8 @@ func ToJsonString(data interface{}) (string, error) {
 		return "", err
 	}
 	return string(jsonString), nil
+}
+
+func EnvVariable(key string) string {
+	return os.Getenv(key)
 }

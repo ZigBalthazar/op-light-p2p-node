@@ -32,22 +32,20 @@ var stream *queue.Queue
 type gossipIn struct{}
 
 func (g *gossipIn) OnUnsafeL2Payload(_ context.Context, _ peer.ID, msg *eth.ExecutionPayloadEnvelope) error {
-	fmt.Println("New block received")
+	fmt.Println("New block received, hash:",msg.ExecutionPayload.BlockHash)
 	stringData, err := utils.StructToMap(msg)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println(stringData)
-
-	stream.Add("mantle", stringData) // TODO : env
+	stream.Add(utils.EnvVariable("REDIS_STREAM_NAME"), stringData)
 	return nil
 }
 
 type gossipConfig struct{}
 
 func (g *gossipConfig) P2PSequencerAddress() common.Address {
-	return common.HexToAddress("0xAAC979CBeE00C75C35DE9a2635d8B75940F466dc") // base-mainnet // TODO : env
+	return common.HexToAddress(utils.EnvVariable("P2P_SEQUENCER_ADDRESS"))
 }
 
 type l2Chain struct{}
@@ -65,7 +63,7 @@ func Main(cliCtx *cli.Context) error {
 	ctx := context.Background()
 
 	log.Info("Connecting to redis stream")
-	stream = queue.Init("redis://localhost:6379", ctx) // TODO : env
+	stream = queue.Init(utils.EnvVariable("REDIS_CONN_STRING"), ctx)
 
 	network := cliCtx.String(opflags.NetworkFlagName)
 	rollupConfigPath := cliCtx.String(opflags.RollupConfigFlagName)

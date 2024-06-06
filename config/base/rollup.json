@@ -1,19 +1,20 @@
 {
     "genesis": {
       "l1": {
-        "hash": "0xfcfb8d586bdae763f1189988789211c69eb893a895e7ba48be3ca6289f0941b7",
-        "number": 19300102
+        "hash": "0x614050145039f11a778f1bd3c85ce2c1f3989492dbc544911fab9a7247e81ca4",
+        "number": 19437305
       },
       "l2": {
-        "hash": "0xb689b35ef29d0bec5816938e0e52683c7257d2e325420ea69b739a2be4754b89",
-        "number": 0
+        "hash": "0xf70a2270b05820a2b335e70ab9ce91e42e15f50d82db73d9c63085711b312fc8",
+        "number": 61171946
       },
-      "l2_time": 1708809815,
+      "l2_time": 1710468791,
       "system_config": {
-        "batcherAddr": "0x415c8893d514f9bc5211d36eeda4183226b84aa7",
+        "batcherAddr": "0x2f40d796917ffb642bd2e2bdd2c762a5e40fd749",
         "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
-        "scalar": "0x00000000000000000000000000000000000000000000000000000000000a6fe0",
-        "gasLimit": 30000000
+        "scalar": "0x0000000000000000000000000000000000000000000000000000000000002710",
+        "gasLimit": 200000000000,
+        "baseFee": 20000000
       }
     },
     "block_time": 2,
@@ -21,11 +22,11 @@
     "seq_window_size": 3600,
     "channel_timeout": 300,
     "l1_chain_id": 1,
-    "l2_chain_id": 81457,
+    "l2_chain_id": 5000,
     "regolith_time": 0,
-    "canyon_time": 0,
-    "batch_inbox_address": "0xff00000000000000000000000000000000081457",
-    "deposit_contract_address": "0x0ec68c5b10f21effb74f2a5c61dfe6b08c0db6cb",
-    "l1_system_config_address": "0x5531dcff39ec1ec727c4c5d2fc49835368f805a9",
-    "protocol_versions_address": "0x0000000000000000000000000000000000000000"
+    "batch_inbox_address": "0xff00000000000000000000000000000000000000",
+    "deposit_contract_address": "0xc54cb22944f2be476e02decfcd7e3e7d3e15a8fb",
+    "l1_system_config_address": "0x427ea0710fa5252057f0d88274f7aeb308386caf",
+    "mantle_da_switch": true,
+    "datalayr_service_manager_addr": "0x5BD63a7ECc13b955C4F57e3F12A64c10263C14c1"
   }

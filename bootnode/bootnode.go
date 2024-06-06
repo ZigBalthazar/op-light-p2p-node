@@ -7,6 +7,8 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/urfave/cli/v2"
+	"github.com/zigbalthazar/op-light-p2p-node/queue"
+	"github.com/zigbalthazar/op-light-p2p-node/utils"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -18,25 +20,34 @@ import (
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
-type gossipNoop struct{}
+var stream *queue.Queue
 
+type gossipIn struct{}
 
-func (g *gossipNoop) OnUnsafeL2Payload(_ context.Context, _ peer.ID, msg *eth.ExecutionPayloadEnvelope) error {
-	fmt.Println(msg.ExecutionPayload.BlockHash)
+func (g *gossipIn) OnUnsafeL2Payload(_ context.Context, _ peer.ID, msg *eth.ExecutionPayloadEnvelope) error {
+	fmt.Println("New block received")
+	stringData, err := utils.StructToMap(msg)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(stringData)
+
+	stream.Add("mantle", stringData) // TODO : env
 	return nil
 }
 
 type gossipConfig struct{}
 
 func (g *gossipConfig) P2PSequencerAddress() common.Address {
-	// return common.HexToAddress("0xAAAA45d9549EDA09E70937013520214382Ffc4A2") // op-mainnet
-	return common.HexToAddress("0xAf6E19BE0F9cE7f8afd49a1824851023A8249e8a") // base-mainnet
+	return common.HexToAddress("0xAAC979CBeE00C75C35DE9a2635d8B75940F466dc") // base-mainnet // TODO : env
 }
 
 type l2Chain struct{}
@@ -52,6 +63,15 @@ func Main(cliCtx *cli.Context) error {
 	oplog.SetGlobalLogHandler(logger.Handler())
 	m := metrics.NewMetrics("default")
 	ctx := context.Background()
+
+	log.Info("Connecting to redis stream")
+	stream = queue.Init("redis://localhost:6379", ctx) // TODO : env
+
+	network := cliCtx.String(opflags.NetworkFlagName)
+	rollupConfigPath := cliCtx.String(opflags.RollupConfigFlagName)
+
+	fmt.Println(network)
+	fmt.Println(rollupConfigPath)
 
 	config, err := opnode.NewRollupConfigFromCLI(logger, cliCtx)
 	if err != nil {
@@ -70,7 +90,7 @@ func Main(cliCtx *cli.Context) error {
 		p2pConfig.EnableReqRespSync = false
 	}
 
-	gossipHandler := &gossipNoop{}
+	gossipHandler := &gossipIn{}
 	p2pNode, err := p2p.NewNodeP2P(ctx, config, logger, p2pConfig, gossipHandler, &l2Chain{}, &gossipConfig{}, m, false)
 	if err != nil || p2pNode == nil {
 		return err
@@ -120,20 +140,11 @@ func Main(cliCtx *cli.Context) error {
 		m.RecordUp()
 	}
 
-
-	/////////////////////////////////////////////
-	// p2pNode.Host()
-	// p2pNode.Host()
-	// p2pNode.GossipOut()
-	/////////////////////////////////////////////
-
-
 	opio.BlockOnInterrupts()
 
 	return nil
 }
 
-// validateConfig ensures the minimal config required to run a bootnode
 func validateConfig(config *rollup.Config) error {
 	if config.L2ChainID == nil || config.L2ChainID.Uint64() == 0 {
 		return errors.New("chain ID is not set")

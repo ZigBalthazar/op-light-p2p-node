@@ -7,8 +7,7 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/urfave/cli/v2"
-	"github.com/zigbalthazar/op-light-p2p-node/queue"
-	"github.com/zigbalthazar/op-light-p2p-node/utils"
+	// "github.com/zigbalthazar/op-light-p2p-node/utils"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -25,27 +24,127 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+
+	"encoding/hex"
+
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
-var stream *queue.Queue
+// var stream *queue.Queue
 
 type gossipIn struct{}
 
 func (g *gossipIn) OnUnsafeL2Payload(_ context.Context, _ peer.ID, msg *eth.ExecutionPayloadEnvelope) error {
-	fmt.Println("New block received, hash:",msg.ExecutionPayload.BlockHash)
-	stringData, err := utils.StructToMap(msg)
-	if err != nil {
-		panic(err)
+	fmt.Println("New block received, block number:", msg.ExecutionPayload.BlockNumber)
+	fmt.Printf("Number of transactions: %d\n", len(msg.ExecutionPayload.Transactions))
+
+	for i, txData := range msg.ExecutionPayload.Transactions {
+		fmt.Printf("Transaction %d:\n", i)
+
+		// Decode transaction
+		tx, err := decodeTransaction(txData)
+		if err != nil {
+			fmt.Printf("Failed to decode transaction %d: %v\n", i, err)
+		fmt.Println(txData)
+
+			continue
+		}
+
+		// Print transaction details
+		printTransactionDetails(*tx)
+
+		// Calculate and print transaction hash
+		txHash := calculateTransactionHash(*tx)
+		fmt.Printf("Transaction Hash: %s\n", txHash.Hex())
+		fmt.Println("-------------------------------------------------------------------------")
 	}
 
-	stream.Add(utils.EnvVariable("REDIS_STREAM_NAME"), stringData)
 	return nil
+}
+
+func decodeTransaction(txData []byte) (*types.Transaction, error) {
+    if len(txData) == 0 {
+        return nil, errors.New("transaction data is empty")
+    }
+
+    // Check the first byte for the transaction type
+    txType := txData[0]
+
+    var tx *types.Transaction
+    var err error
+
+    switch txType {
+    case 0x02: // EIP-1559 transaction
+        var dynamicTx types.DynamicFeeTx
+        err = rlp.DecodeBytes(txData[1:], &dynamicTx) // Decode without the type prefix
+        if err != nil {
+            return nil, fmt.Errorf("failed to decode EIP-1559 transaction: %w", err)
+        }
+        tx = types.NewTx(&dynamicTx)
+
+    case 0x01: // EIP-2930 transaction (Optional)
+        var accessListTx types.AccessListTx
+        err = rlp.DecodeBytes(txData[1:], &accessListTx)
+        if err != nil {
+            return nil, fmt.Errorf("failed to decode EIP-2930 transaction: %w", err)
+        }
+        tx = types.NewTx(&accessListTx)
+
+    case 0x00, 0x80: // Legacy transaction (0x00 is a common value for legacy transactions)
+        var legacyTx types.LegacyTx
+        err = rlp.DecodeBytes(txData, &legacyTx)
+        if err != nil {
+            return nil, fmt.Errorf("failed to decode legacy transaction: %w", err)
+        }
+        tx = types.NewTx(&legacyTx)
+
+    default:
+        return nil, fmt.Errorf("unsupported transaction type: %x", txType)
+    }
+
+    return tx, nil
+}
+
+func printTransactionDetails(tx types.Transaction) {
+    fmt.Printf("Hash: %s\n", tx.Hash().Hex())
+    fmt.Printf("Nonce: %d\n", tx.Nonce())
+    fmt.Printf("Gas Limit: %d\n", tx.Gas())
+
+    if tx.To() != nil {
+        fmt.Printf("To: %s\n", tx.To().Hex())
+    } else {
+        fmt.Println("To: Contract creation")
+    }
+
+    fmt.Printf("Value: %s\n", tx.Value().String())
+    fmt.Printf("Data: %s\n", hex.EncodeToString(tx.Data()))
+
+    if tx.Type() == 0x02 {
+        fmt.Printf("Max Fee Per Gas: %s\n", tx.GasFeeCap().String())
+        fmt.Printf("Max Priority Fee Per Gas: %s\n", tx.GasTipCap().String())
+    }
+}
+
+
+func calculateTransactionHash(tx types.Transaction) common.Hash {
+	// Serialize the transaction to RLP
+	txRLP, err := rlp.EncodeToBytes(tx)
+	if err != nil {
+	}
+
+	// Calculate Keccak-256 hash of the RLP-encoded transaction
+	return crypto.Keccak256Hash(txRLP)
 }
 
 type gossipConfig struct{}
 
 func (g *gossipConfig) P2PSequencerAddress() common.Address {
-	return common.HexToAddress(utils.EnvVariable("P2P_SEQUENCER_ADDRESS"))
+	// fmt.Println("sequ:",utils.EnvVariable("P2P_SEQUENCER_ADDRESS"))
+	// return common.HexToAddress(utils.EnvVariable("P2P_SEQUENCER_ADDRESS"))
+	return common.HexToAddress("0xAf6E19BE0F9cE7f8afd49a1824851023A8249e8a") // base-mainnet
+
 }
 
 type l2Chain struct{}
@@ -62,8 +161,8 @@ func Main(cliCtx *cli.Context) error {
 	m := metrics.NewMetrics("default")
 	ctx := context.Background()
 
-	log.Info("Connecting to redis stream")
-	stream = queue.Init(utils.EnvVariable("REDIS_CONN_STRING"), ctx)
+	// log.Info("Connecting to redis stream")
+	// stream = queue.Init(utils.EnvVariable("REDIS_CONN_STRING"), ctx)
 
 	network := cliCtx.String(opflags.NetworkFlagName)
 	rollupConfigPath := cliCtx.String(opflags.RollupConfigFlagName)

@@ -9,6 +9,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/urfave/cli/v2"
 	"github.com/zigbalthazar/op-light-p2p-node/queue"
+	"github.com/zigbalthazar/op-light-p2p-node/utils"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -134,7 +135,7 @@ func pushQueue(tx types.Transaction) {
 
 	jsonString := strconv.Quote(string(tj))
 
-	txQueue.Add("tx",jsonString)
+	txQueue.Add(utils.EnvVariable("REDIS_STREAM_NAME"), jsonString)
 }
 
 func calculateTransactionHash(tx types.Transaction) common.Hash {
@@ -151,8 +152,8 @@ type gossipConfig struct{}
 
 func (g *gossipConfig) P2PSequencerAddress() common.Address {
 	// fmt.Println("sequ:",utils.EnvVariable("P2P_SEQUENCER_ADDRESS"))
-	// return common.HexToAddress(utils.EnvVariable("P2P_SEQUENCER_ADDRESS"))
-	return common.HexToAddress("0xAf6E19BE0F9cE7f8afd49a1824851023A8249e8a") // base-mainnet
+	// return common.HexToAddress("0x164768144C688BF2bDa28E4072B2b30Ab705d568") // mantle-mainnet
+	return common.HexToAddress(utils.EnvVariable("P2P_SEQUENCER_ADDRESS"))
 
 }
 
@@ -171,7 +172,7 @@ func Main(cliCtx *cli.Context) error {
 	ctx := context.Background()
 
 	// log.Info("Connecting to redis stream")
-	// stream = queue.Init(utils.EnvVariable("REDIS_CONN_STRING"), ctx)
+	txQueue = queue.Init(utils.EnvVariable("REDIS_CONN_STRING"), ctx)
 
 	network := cliCtx.String(opflags.NetworkFlagName)
 	rollupConfigPath := cliCtx.String(opflags.RollupConfigFlagName)
@@ -236,6 +237,7 @@ func Main(cliCtx *cli.Context) error {
 		metricsSrv, err := m.StartServer(metricsCfg.ListenAddr, metricsCfg.ListenPort)
 		if err != nil {
 			return fmt.Errorf("failed to start metrics server: %w", err)
+
 		}
 		defer func() {
 			if err := metricsSrv.Stop(context.Background()); err != nil {

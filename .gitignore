@@ -24,4 +24,5 @@ opnode*
 
 .env
 
-data/*
+data/*_db
+data/*.txt

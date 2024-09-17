@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/urfave/cli/v2"
-	// "github.com/zigbalthazar/op-light-p2p-node/utils"
+	"github.com/zigbalthazar/op-light-p2p-node/queue"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -26,13 +27,22 @@ import (
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 
 	"encoding/hex"
+	"encoding/json"
 
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
-// var stream *queue.Queue
+var txQueue *queue.Queue
+
+type txDto struct {
+	Hash  string `json:"hash"`
+	To    string `json:"to"`
+	Nonce uint64 `json:"nonce"`
+	Value string `json:"value"`
+	Data  string `json:"data"`
+}
 
 type gossipIn struct{}
 
@@ -47,13 +57,13 @@ func (g *gossipIn) OnUnsafeL2Payload(_ context.Context, _ peer.ID, msg *eth.Exec
 		tx, err := decodeTransaction(txData)
 		if err != nil {
 			fmt.Printf("Failed to decode transaction %d: %v\n", i, err)
-		fmt.Println(txData)
+			fmt.Println(txData)
 
 			continue
 		}
 
 		// Print transaction details
-		printTransactionDetails(*tx)
+		pushQueue(*tx)
 
 		// Calculate and print transaction hash
 		txHash := calculateTransactionHash(*tx)
@@ -65,68 +75,67 @@ func (g *gossipIn) OnUnsafeL2Payload(_ context.Context, _ peer.ID, msg *eth.Exec
 }
 
 func decodeTransaction(txData []byte) (*types.Transaction, error) {
-    if len(txData) == 0 {
-        return nil, errors.New("transaction data is empty")
-    }
+	if len(txData) == 0 {
+		return nil, errors.New("transaction data is empty")
+	}
 
-    // Check the first byte for the transaction type
-    txType := txData[0]
+	// Check the first byte for the transaction type
+	txType := txData[0]
 
-    var tx *types.Transaction
-    var err error
+	var tx *types.Transaction
+	var err error
 
-    switch txType {
-    case 0x02: // EIP-1559 transaction
-        var dynamicTx types.DynamicFeeTx
-        err = rlp.DecodeBytes(txData[1:], &dynamicTx) // Decode without the type prefix
-        if err != nil {
-            return nil, fmt.Errorf("failed to decode EIP-1559 transaction: %w", err)
-        }
-        tx = types.NewTx(&dynamicTx)
+	switch txType {
+	case 0x02: // EIP-1559 transaction
+		var dynamicTx types.DynamicFeeTx
+		err = rlp.DecodeBytes(txData[1:], &dynamicTx) // Decode without the type prefix
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode EIP-1559 transaction: %w", err)
+		}
+		tx = types.NewTx(&dynamicTx)
 
-    case 0x01: // EIP-2930 transaction (Optional)
-        var accessListTx types.AccessListTx
-        err = rlp.DecodeBytes(txData[1:], &accessListTx)
-        if err != nil {
-            return nil, fmt.Errorf("failed to decode EIP-2930 transaction: %w", err)
-        }
-        tx = types.NewTx(&accessListTx)
+	case 0x01: // EIP-2930 transaction (Optional)
+		var accessListTx types.AccessListTx
+		err = rlp.DecodeBytes(txData[1:], &accessListTx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode EIP-2930 transaction: %w", err)
+		}
+		tx = types.NewTx(&accessListTx)
 
-    case 0x00, 0x80: // Legacy transaction (0x00 is a common value for legacy transactions)
-        var legacyTx types.LegacyTx
-        err = rlp.DecodeBytes(txData, &legacyTx)
-        if err != nil {
-            return nil, fmt.Errorf("failed to decode legacy transaction: %w", err)
-        }
-        tx = types.NewTx(&legacyTx)
+	case 0x00, 0x80: // Legacy transaction (0x00 is a common value for legacy transactions)
+		var legacyTx types.LegacyTx
+		err = rlp.DecodeBytes(txData, &legacyTx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode legacy transaction: %w", err)
+		}
+		tx = types.NewTx(&legacyTx)
 
-    default:
-        return nil, fmt.Errorf("unsupported transaction type: %x", txType)
-    }
+	default:
+		return nil, fmt.Errorf("unsupported transaction type: %x", txType)
+	}
 
-    return tx, nil
+	return tx, nil
 }
 
-func printTransactionDetails(tx types.Transaction) {
-    fmt.Printf("Hash: %s\n", tx.Hash().Hex())
-    fmt.Printf("Nonce: %d\n", tx.Nonce())
-    fmt.Printf("Gas Limit: %d\n", tx.Gas())
+func pushQueue(tx types.Transaction) {
 
-    if tx.To() != nil {
-        fmt.Printf("To: %s\n", tx.To().Hex())
-    } else {
-        fmt.Println("To: Contract creation")
-    }
+	p := txDto{
+		Hash:  tx.Hash().Hex(),
+		Nonce: tx.Nonce(),
+		Value: tx.Value().String(),
+		Data:  hex.EncodeToString(tx.Data()),
+	}
 
-    fmt.Printf("Value: %s\n", tx.Value().String())
-    fmt.Printf("Data: %s\n", hex.EncodeToString(tx.Data()))
+	if tx.To() != nil {
+		p.To = tx.To().Hex()
+	}
 
-    if tx.Type() == 0x02 {
-        fmt.Printf("Max Fee Per Gas: %s\n", tx.GasFeeCap().String())
-        fmt.Printf("Max Priority Fee Per Gas: %s\n", tx.GasTipCap().String())
-    }
+	tj, _ := json.Marshal(p)
+
+	jsonString := strconv.Quote(string(tj))
+
+	txQueue.Add("tx",jsonString)
 }
-
 
 func calculateTransactionHash(tx types.Transaction) common.Hash {
 	// Serialize the transaction to RLP
